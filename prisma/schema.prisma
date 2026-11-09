@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum MessageDirection {
+  IN
+  OUT_BOT
+  OUT_HUMAN
+}
+
+enum TicketStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Contact {
+  id                  Int              @id @default(autoincrement())
+  phone               String           @unique
+  name                String?
+  privacyNoticeSentAt DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  conversations       Conversation[]
+  tickets             Ticket[]
+  privacyRequests     PrivacyRequest[]
+
+  @@map("contacts")
+}
+
+model Conversation {
+  id        Int       @id @default(autoincrement())
+  contactId Int
+  contact   Contact   @relation(fields: [contactId], references: [id])
+  state     String    @default("NEW") // NEW | MENU | CONTENT | ENDED
+  failCount Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+  tickets   Ticket[]
+
+  @@index([contactId])
+  @@map("conversations")
+}
+
+model Message {
+  id             Int              @id @default(autoincrement())
+  conversationId Int
+  conversation   Conversation     @relation(fields: [conversationId], references: [id])
+  waMessageId    String?          @unique
+  direction      MessageDirection
+  body           String
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model MenuOption {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique
+  label      String
+  keywords   String[] // já normalizadas: MAIÚSCULAS, sem acento
+  action     String // CONTENT | HANDOFF
+  contentKey String?
+  sortOrder  Int
+  active     Boolean  @default(true)
+
+  @@map("menu_options")
+}
+
+model BotContent {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  title     String
+  body      String
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_contents")
+}
+
+model Ticket {
+  id             Int          @id @default(autoincrement())
+  protocol       String       @unique
+  contactId      Int
+  contact        Contact      @relation(fields: [contactId], references: [id])
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  status         TicketStatus @default(WAITING)
+  reason         String
+  outsideHours   Boolean      @default(false)
+  assignedTo     String?
+  createdAt      DateTime     @default(now())
+  assignedAt     DateTime?
+  completedAt    DateTime?
+
+  @@index([status, createdAt])
+  @@map("tickets")
+}
+
+model WebhookEvent {
+  id          Int       @id @default(autoincrement())
+  externalId  String    @unique
+  field       String
+  payload     Json
+  status      String    @default("RECEIVED") // RECEIVED | PROCESSED | FAILED
+  error       String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@map("webhook_events")
+}
+
+// Exceções ao horário semanal (feriados, recessos, horário especial).
+// dateKey = "YYYY-MM-DD" no fuso America/Sao_Paulo
+model BusinessCalendar {
+  id          Int     @id @default(autoincrement())
+  dateKey     String  @unique
+  closed      Boolean @default(true)
+  opensAtMin  Int? // minutos desde 00:00; usado quando closed = false
+  closesAtMin Int?
+  note        String?
+
+  @@map("business_calendar")
+}
+
+model BotSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_settings")
+}
+
+model PrivacyRequest {
+  id        Int      @id @default(autoincrement())
+  contactId Int
+  contact   Contact  @relation(fields: [contactId], references: [id])
+  status    String   @default("OPEN")
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@map("privacy_requests")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  actor     String
+  entity    String?
+  entityId  Int?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
