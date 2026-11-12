@@ -13,7 +13,11 @@ export const webhookRouter = Router();
 
 // Verificação inicial exigida pela Meta
 webhookRouter.get("/webhook", (req, res) => {
-  if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === config.verifyToken) {
+  const mode = req.query["hub.mode"];
+  const tokenOk = req.query["hub.verify_token"] === config.verifyToken;
+  console.log(`[webhook GET] mode=${mode} tokenOk=${tokenOk} ua=${req.header("user-agent")}`);
+
+  if (mode === "subscribe" && tokenOk) {
     return res.status(200).send(String(req.query["hub.challenge"]));
   }
   return res.sendStatus(403);
