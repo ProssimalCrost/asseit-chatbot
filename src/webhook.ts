@@ -24,7 +24,14 @@ webhookRouter.get("/webhook", (req, res) => {
 });
 
 webhookRouter.post("/webhook", (req, res) => {
-  if (!validSignature(req)) return res.sendStatus(401);
+  const ok = validSignature(req);
+  const fields = (req.body?.entry ?? []).flatMap((e: any) =>
+    (e.changes ?? []).map((c: any) => c.field),
+  );
+  console.log(
+    `[webhook POST] signatureOk=${ok} fields=${JSON.stringify(fields)} hasRaw=${!!(req as any).rawBody}`,
+  );
+  if (!ok) return res.sendStatus(401);
   res.sendStatus(200); // responde rápido; o processamento segue em segundo plano
   processPayload(req.body).catch((err) => console.error("Erro ao processar webhook:", err));
 });
